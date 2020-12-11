@@ -1,0 +1,236 @@
+%% benard's experiment: fluid heated from bottom
+
+% physical parameters
+T0 = 0;
+T1 = .2;
+
+R = 0;     % Rayleigh number
+sigma = 1; % Prandtl number
+q = T0 - T1;     % strength of heat flux. really a derived quantity from T0, T1
+
+% create grid
+delta = .00006;
+NN   = 30; 
+T   = .1;
+dx2 = 1/NN;
+dx3 = 1/NN;
+dt  = .6*dx2*sqrt(delta);   % what does stability analysis say we need here?
+TT  = ceil(T/dt);
+
+a0 = 3.177;  % period of first unstable mode
+a = 0;
+b = 1;
+c = 0;
+d = 2*pi/a0;
+
+x2 = c:dx2:a0;
+x3 = a:dx3:b;
+
+[X2,X3] = meshgrid(x2,x3); s = size(X2);
+N = s(1)-1;
+M = s(2)-1;
+
+%% initialize//boundary conditions
+% initialize solution (u,v,rho,T). pressure = rho/delta
+u   = zeros([size(X2),3]);
+v   = zeros([size(X2),3]);      % velocity field
+
+rho  = zeros([size(X2), 3]);     % fluid density
+
+temp = zeros([size(X2), 3]);     % temperature
+
+% must initialize u(t=2dt) since this is a two-step algorithm. just
+% satisify boundary conditions for now, maybe can optimize this for
+% faster convergence later
+bdy1         = zeros(size(X2));
+%bdy1(1,:)    = 4*x2.*(1-x2);    % just the long-time solution.
+%bdy1(N+1,:)  = bdy1(1,:);
+bdy2         = zeros(size(X2));
+
+rho0         = zeros(size(X2));
+
+% interpolates from given boundary values
+[x2_samp, x3_samp] = meshgrid(x2, [a,b]);
+temp0_samp = [T0*ones(size(x2)); T1*ones(size(x2))];
+temp0 = interp2(x2_samp, x3_samp, temp0_samp, X2,X3);
+
+u(:,:,1) = bdy1;
+u(:,:,2) = bdy1;
+u(:,:,3) = bdy1;
+
+v(:,:,1) = bdy2;
+v(:,:,2) = bdy2;
+v(:,:,3) = bdy2;
+
+rho(:,:,1) = rho0;
+rho(:,:,2) = rho0;
+rho(:,:,3) = rho0;
+
+temp(:,:,1) = temp0;
+temp(:,:,2) = temp0;
+temp(:,:,3) = temp0;
+
+
+%% main loop
+w      = (1+2*dt*(1/(dx2).^2 + 1/(dx3).^2))^-1;
+wsigma = (1+2*dt/sigma*(1/(dx2).^2 + 1/(dx3).^2))^-1;
+t=3;
+
+
+for s = 3:floor(T/dt)
+    if mod(s,10000) == 0
+        s
+    end
+    
+    for i = 1:N+1
+        %% bdy updates: left + right boundaries
+        % these boundaries are periodic 
+        if i == 1
+             % velocity (momentum conservation)
+            u(1,2:M,t) = w*(-dt/dx2*(u(2,2:M,t-1).^2-u(N+1,2:M,t-1).^2) ...
+                          - dt/dx3*(u(1,3:M+1,t-1).*v(1,3:M+1,t-1) - u(1,1:M-1,t-1).*v(1,1:M-1,t-1)) ...
+                          + 2*dt/(dx2^2)*(u(2,2:M,t-1)+u(N+1,2:M,t-1) - u(1,2:M,t-2)) ...
+                          + 2*dt/(dx3^2)*(u(1,3:M+1,t-1)+u(1,1:M-1,t-1) - u(1,2:M,t-2)) ...
+                          - dt/dx2*R/(sigma*q*delta)*(rho(2,2:M,t-1) - rho(N+1,2:M,t-1)) ...
+                          + u(1,2:M,t-2));
+            v(1,2:M,t) = w*(-dt/dx2*(v(2,2:M,t-1).*u(2,2:M,t-1) - v(N+1,2:M,t-1).*u(N+1,2:M,t-1)) ...
+                          - dt/dx3*(v(1,3:M+1,t-1).^2 - v(1,1:M-1,t-1).^2) ...
+                          + 2*dt/(dx2.^2)*(v(2,2:M,t-1) + v(N+1,2:M,t-1) - v(1,2:M,t-2)) ...
+                          + 2*dt/(dx3.^2)*(v(1,3:M+1,t-1) + v(1,1:M-1,t-1) - v(1,2:M,t-2)) ...
+                          - 2*dt*R/(sigma*q)*(1-q*(temp(1,2:M,t-1)-1)) ...
+                          - dt/dx3*R/(sigma*q*delta)*(rho(1,3:M+1,t-1) - rho(1,1:M-1,t-1)) ...
+                          + v(1,2:M,t-2));
+
+            % density (mass conservation)
+            rho(1,2:M,t) = -dt/dx2*(u(2,2:M,t-1)-u(N+1,2:M,t-1)) ...
+                           -dt/dx3*(v(1,3:M+1,t-1)-v(1,1:M-1,t-1)) ...
+                           + rho(1,2:M,t-2);
+
+            % temperature (advection-diffusion)
+            temp(1,2:M,t) = wsigma*(-2*dt/dx2*(temp(2,2:M,t-1).*u(2,2:M,t-1)-temp(N+1,2:M,t-1).*u(N+1,2:M,t-1)) ...
+                                  -2*dt/dx3*(temp(1,3:M+1,t-1).*v(1,3:M+1,t-1)-temp(1,1:M-1,t-1).*v(1,1:M-1,t-1)) ...
+                                  +2*dt/(dx2.^2)*(temp(2,2:M,t-1)+temp(N+1,2:M,t-1)-temp(1,2:M,t-2)) ...
+                                  +2*dt/(dx3.^2)*(temp(1,3:M+1,t-1)+temp(1,1:M-1,t-1)-temp(1,2:M,t-2)) ...
+                          + temp(1,2:M,t-2));
+        elseif i == N+1
+             % velocity (momentum conservation)
+            u(N+1,2:M,t) = w*(-dt/dx2*(u(1,2:M,t-1).^2-u(N,2:M,t-1).^2) ...
+                          - dt/dx3*(u(N+1,3:M+1,t-1).*v(N+1,3:M+1,t-1) - u(N+1,1:M-1,t-1).*v(N+1,1:M-1,t-1)) ...
+                          + 2*dt/(dx2.^2)*(u(1,2:M,t-1)+u(N,2:M,t-1) - u(N+1,2:M,t-2)) ...
+                          + 2*dt/(dx3.^2)*(u(N+1,3:M+1,t-1)+u(N+1,1:M-1,t-1) - u(N+1,2:M,t-2)) ...
+                          - dt/dx2*R/(sigma*q*delta)*(rho(1,2:M,t-1) - rho(N,2:M,t-1)) ...
+                          + u(N+1,2:M,t-2));
+            v(N+1,2:M,t) = w*(-dt/dx2*(v(1,2:M,t-1).*u(1,2:M,t-1) - v(N,2:M,t-1).*u(N,2:M,t-1)) ...
+                          - dt/dx3*(v(N+1,3:M+1,t-1).^2 - v(N+1,1:M-1,t-1).^2) ...
+                          + 2*dt/(dx2.^2)*(v(1,2:M,t-1) + v(N,2:M,t-1) - v(N+1,2:M,t-2)) ...
+                          + 2*dt/(dx3.^2)*(v(N+1,3:M+1,t-1) + v(N+1,1:M-1,t-1) - v(N+1,2:M,t-2)) ...
+                          - 2*dt*R/(sigma*q)*(1-q*(temp(N+1,2:M,t)-1)) ...
+                          - dt/dx3*R/(sigma*q*delta)*(rho(N+1,3:M+1,t-1) - rho(N+1,1:M-1,t-1)) ...
+                          + v(N+1,2:M,t-2));
+
+            % density (mass conservation)
+            rho(N+1,2:M,t) = -dt/dx2*(u(1,2:M,t-1)-u(N,2:M,t-1)) ...
+                             -dt/dx3*(v(N+1,3:M+1,t-1)-v(N+1,1:M-1,t-1)) ...
+                             + rho(N+1,2:M,t-2);
+
+            % temperature (advection-diffusion)
+            temp(N+1,2:M,t) = wsigma*(-2*dt/dx2*(temp(1,2:M,t-1).*u(1,2:M,t-1)-temp(N,2:M,t-1).*u(N,2:M,t-1)) ...
+                                  -2*dt/dx3*(temp(N+1,3:M+1,t-1).*v(N+1,3:M+1,t-1)-temp(N+1,1:M-1,t-1).*v(N+1,1:M-1,t-1)) ...
+                                  +2*dt/(dx2.^2)*(temp(1,2:M,t-1)+temp(N,2:M,t-1)-temp(N+1,2:M,t-2)) ...
+                                  +2*dt/(dx3.^2)*(temp(N+1,3:M+1,t-1)+temp(N+1,1:M-1,t-1)-temp(N+1,2:M,t-2)) ...
+                            + temp(N+1,2:M,t-2));
+        else     
+            for j = 1:M+1
+                %% bdy updates: top + bottom (including corners)
+                % for (u,v) and temp, simply enforce boundary conditions
+                % for rho, use first-order one-sided difference scheme in x3
+                % derivatives, periodicity in x2 derivatives. One-sided
+                % scheme should not affect overall stability, but try to
+                % use second order if you're having troubles near the boundary
+                if j == 1
+                    u(:,1,t)    = bdy1(:,1);
+                    v(:,1,t)    = bdy2(:,1);
+                    
+                    rho(1,1,t)   = -dt/dx2*(u(2,1,t-1)-u(N+1,1,t-1)) ...
+                                   - 2*dt/dx3*(v(1,2,t-1)-v(1,1,t-1)) ...
+                                   + rho(1,1,t-2);
+                    rho(2:N,1,t) = -dt/dx2*(u(3:N+1,1,t-1)-u(1:N-1,1,t-1)) ...
+                                   - 2*dt/dx3*(v(2:N,2,t-1)-v(2:N,1,t-1)) ...
+                                   + rho(2:N,1,t-2);
+                    rho(N+1,1,t) = - dt/dx2*(u(1,1,t-1)-u(N,1,t-1)) ...
+                                   - 2*dt/dx3*(v(N+1,2,t-1)-v(N+1,1,t-1)) ...
+                                   + rho(N+1,1,t-2);           
+                               
+                    temp(:,1,t) = temp0(:,1);
+                elseif j == M+1
+                    u(:,M+1,t)    = bdy1(:,M+1);
+                    v(:,M+1,t)    = bdy2(:,M+1);
+                    
+                    rho(1,M+1,t)   = -dt/dx2*(u(2,M+1,t-1)-u(N+1,M+1,t-1)) ...
+                                     - 2*dt/dx3*(v(1,M+1,t-1)-v(1,M,t-1)) ...
+                                     + rho(1,M+1,t-2);
+                    rho(2:N,M+1,t) = - dt/dx2*(u(3:N+1,M+1,t-1)-u(1:N-1,M+1,t-1)) ...
+                                     - 2*dt/dx3*(v(2:N,M+1,t-1)-v(2:N,M,t-1)) ...
+                                     + rho(2:N,M+1,t-2); 
+                    rho(N+1,M+1,t) = -dt/dx2*(u(1,M+1,t-1)-u(N,M+1,t-1)) ...
+                                     -2*dt/dx3*(v(N+1,M+1,t-1)-v(N+1,M,t-1)) ...
+                                     + rho(N+1,M+1,t-2);
+                       
+                    
+                    temp(:,M+1,t) = temp0(:,M+1);
+                    
+                %% interior updates
+                else 
+                    % velocity (momentum conservation)
+                    % todo: fix u veloctiy shouldn't contain bouyancy term
+                    u(i,j,t) = w*(-dt/dx2*(u(i+1,j,t-1).^2-u(i-1,j,t-1).^2) ...
+                                  - dt/dx3*(u(i,j+1,t-1).*v(i,j+1,t-1) - u(i,j-1,t-1).*v(i,j-1,t-1)) ...
+                                  + 2*dt/(dx2.^2)*(u(i+1,j,t-1)+u(i-1,j,t-1) - u(i,j,t-2)) ...
+                                  + 2*dt/(dx3.^2)*(u(i,j+1,t-1)+u(i,j-1,t-1) - u(i,j,t-2)) ...
+                                  - dt/dx2*R/(sigma*q*delta)*(rho(i+1,j,t-1) - rho(i-1,j,t-1)) ...
+                                  + u(i,j,t-2));
+                    v(i,j,t) = w*(-dt/dx2*(v(i+1,j,t-1).*u(i+1,j,t-1) - v(i-1,j,t-1).*u(i-1,j,t-1)) ...
+                                  - dt/dx3*(v(i,j+1,t-1).^2 - v(i,j-1,t-1).^2) ...
+                                  + 2*dt/(dx2.^2)*(v(i+1,j,t-1) + v(i-1,j,t-1) - v(i,j,t-2)) ...
+                                  + 2*dt/(dx3.^2)*(v(i,j+1,t-1) + v(i,j-1,t-1) - v(i,j,t-2)) ...
+                                  - 2*dt*R/(sigma*q)*(1-q*(temp(i,j,t)-1)) ...
+                                  - dt/dx3*R/(sigma*q*delta)*(rho(i,j+1,t-1) - rho(i,j-1,t-1)) ...
+                                  + v(i,j,t-2));
+
+                    % density (mass conservation)
+                    rho(i,j,t) = -dt/dx2*(u(i+1,j,t-1)-u(i-1,j,t-1)) ...
+                                 -dt/dx3*(v(i,j+1,t-1)-v(i,j-1,t-1)) ...
+                                 + rho(i,j,t-2);
+                             
+                    % temperature (advection-diffusion) 
+                    temp(i,j,t) = wsigma*(-2*dt/dx2*(temp(i+1,j,t-1).*u(i+1,j,t-1)-temp(i-1,j,t-1).*u(i-1,j,t-1)) ...
+                                          -2*dt/dx3*(temp(i,j+1,t-1).*v(i,j+1,t-1)-temp(i,j-1,t-1).*v(i,j-1,t-1)) ...
+                                          +2*dt/(dx2.^2)*(temp(i+1,j,t-1)+temp(i-1,j,t-1)-temp(i,j,t-2)) ...
+                                          +2*dt/(dx3.^2)*(temp(i,j+1,t-1)+temp(i,j-1,t-1)-temp(i,j,t-2)) ...
+                                  + temp(i,j,t-2));
+                end
+            end
+        end
+    end
+    
+    % update values for next iteration
+    u(:,:,1) = u(:,:,2);
+    u(:,:,2) = u(:,:,3);
+    
+    v(:,:,1) = v(:,:,2);
+    v(:,:,2) = v(:,:,3);
+    
+    rho(:,:,1) = rho(:,:,2);
+    rho(:,:,2) = rho(:,:,3);
+    
+    temp(:,:,1) = temp(:,:,2);
+    temp(:,:,2) = temp(:,:,3);
+
+end
+    
+
+surf(x2,x3,temp(:,:,3))
+
+
+
+
