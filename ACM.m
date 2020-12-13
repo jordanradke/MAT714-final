@@ -1,12 +1,13 @@
 %% Chorin's algorithm for simple test case. can generalize as needed.
 
 % create grid
-delta = .006;
+R = f;                          % Reynolds number
+delta = .006*f^2;                 % artificial compressibility
 N   = 50; 
-T   = 1;
+T   = .2;
 dx1 = 1/N;
 dx2 = 1/N;
-dt  = .6*dx1*sqrt(delta);   % what does stability analysis say we need here?
+dt  = .6*dx1*R*sqrt(delta);   % what does stability analysis say we need here?
 
 
 a = 0;
@@ -24,8 +25,6 @@ u1 = zeros([size(X1),3]);
 u2 = zeros([size(X1),3]);       % velocity field
 
 rho = zeros([size(X1), 3]);     % fluid density
-delta = .006;                   % artificial compressibility
-R = 1;                          % Reynolds number
 
 % must initialize u(t=2dt) since this is a two-step algorithm. just
 % satisify boundary conditions for now, maybe can optimize this for

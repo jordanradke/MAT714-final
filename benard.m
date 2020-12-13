@@ -1,24 +1,28 @@
 %% benard's experiment: fluid heated from bottom
+function [u,v,temp,rho,dt,x2,x3,dx2,dx3,a0,sigma] = benard(f)
 
 % physical parameters
 T0 = 1;
 T1 = 0;
 
-R = 10000;     % Rayleigh number
+R = 1750*f;     % Rayleigh number
 sigma = 1; % Prandtl number
-q = 30000*(T0 - T1);     % strength of heat flux. really a derived quantity from T0, T1
+
+
+q = 1000*sqrt(f)*(T0 - T1);     % strength of heat flux. really a derived quantity from T0, T1
                       % THIS is what helped for convergence!! 
 
 % create grid
-delta = 0.0001;
-NN   = 100; 
-T   = .25;
+delta = 0.001*sqrt(f);
+NN   = 40; 
+T   = 2;
 dx2 = 1/NN;
 dx3 = 1/NN;
-dt  = .6*dx2*sqrt(delta);   % what does stability analysis say we need here?
+c = (R/(sigma*q*delta)^1/2);
+dt  = .6*dx2/c;   % what does stability analysis say we need here?
 TT  = ceil(T/dt);
 
-a0 = 3.117;  % period of first unstable mode
+a0 = 2*pi/3.117;  % period of first unstable mode
 a = 0;
 b = 1;
 c = 0;
@@ -57,7 +61,7 @@ temp0 = interp2(x3_samp, x2_samp, temp0_samp, X3,X2);
 
 % add random noise to initial distribution
 eps = .01;
-temp0 = temp0 + eps.*rand(size(X3)); 
+temp0 = temp0 + eps.*[zeros(M+1,1), rand(M+1,N-1), zeros(M+1,1)]; 
 
 u(:,:,1) = bdy1;
 u(:,:,2) = bdy1;
@@ -233,8 +237,9 @@ for s = 3:floor(T/dt)
 
 end
     
+end
 
-surf(x3,x2,temp(:,:,3))
+%surf(x3,x2,temp(:,:,3))
 
 
 
