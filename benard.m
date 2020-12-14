@@ -1,24 +1,30 @@
 %% benard's experiment: fluid heated from bottom
-function [u,v,temp,rho,dt,x2,x3,dx2,dx3,a0,sigma] = benard(f)
+function [u,v,temp,rho,dt,x2,x3,dx2,dx3,a0,sigma,s] = benard(f,NN)
+% parameters:
+% f: the Rayleigh number as a fraction of R_c = 1708
+% NN: the grid size
+%
+% returns:
+% steady-state velocity and temperature profile, and various parameters 
+% needed to compute Nusselt number in nusselt.m
 
 % physical parameters
 T0 = 1;
 T1 = 0;
 
-R = 1750*f;     % Rayleigh number
-sigma = 1; % Prandtl number
+R = 1708*f; % Rayleigh number
+sigma = 1;  % Prandtl number
 
 
-q = 1000*sqrt(f)*(T0 - T1);     % strength of heat flux. really a derived quantity from T0, T1
-                      % THIS is what helped for convergence!! 
+q = 1000*f*(T0 - T1);     % strength of heat flux. really a derived quantity from T0, T1
 
 % create grid
-delta = 0.001*sqrt(f);
-NN   = 40; 
-T   = 2;
+delta = 0.001*f;
+%NN   = 40; 
+T   = 1;
 dx2 = 1/NN;
 dx3 = 1/NN;
-c = (R/(sigma*q*delta)^1/2);
+c = R*(1/(sigma*q*delta))^(1/2);
 dt  = .6*dx2/c;   % what does stability analysis say we need here?
 TT  = ceil(T/dt);
 
@@ -28,12 +34,12 @@ b = 1;
 c = 0;
 d = 2*pi/a0;
 
-x2 = c:dx2:a0;
+x2 = c:dx2:a0; 
 x3 = a:dx3:b;
 
 [X3,X2] = meshgrid(x3,x2); s = size(X2);
-M = s(1)-1;
-N = s(2)-1;
+M = s(1)-1;  % length
+N = s(2)-1;  % height
 
 %% initialize//boundary conditions
 % initialize solution (u,v,rho,T). pressure = rho/delta
@@ -85,8 +91,11 @@ w      = (1+2*dt*(1/(dx2).^2 + 1/(dx3).^2))^-1;
 wsigma = (1+2*dt/sigma*(1/(dx2).^2 + 1/(dx3).^2))^-1;
 t=3;
 
+s = 1;
+err = 10^6;
 
-for s = 3:floor(T/dt)
+while err > 10^-5
+
     if mod(s,10000) == 0
         s
     end
@@ -235,8 +244,15 @@ for s = 3:floor(T/dt)
     temp(:,:,1) = temp(:,:,2);
     temp(:,:,2) = temp(:,:,3);
 
+    s = s+1;
+    err = max(max(abs(u(:,:,3)-u(:,:,1)))) + ...
+          max(max(abs(v(:,:,3)-v(:,:,1)))) + ...
+          max(max(abs(temp(:,:,3)-temp(:,:,1))));
+
 end
     
+
+
 end
 
 %surf(x3,x2,temp(:,:,3))
