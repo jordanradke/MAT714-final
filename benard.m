@@ -162,9 +162,7 @@ while err > 10^-5
                 %% bdy updates: top + bottom (including corners)
                 % for (u,v) and temp, simply enforce boundary conditions
                 % for rho, use first-order one-sided difference scheme in x3
-                % derivatives, periodicity in x2 derivatives. One-sided
-                % scheme should not affect overall stability, but try to
-                % use second order if you're having troubles near the boundary
+                % derivatives, periodicity in x2 derivatives. 
                 if j == 1
                     u(:,1,t)    = bdy1(:,1);
                     v(:,1,t)    = bdy2(:,1);
