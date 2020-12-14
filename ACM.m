@@ -1,13 +1,19 @@
-%% Chorin's algorithm for simple test case. can generalize as needed.
+%% Chorin's algorithm for simple test case
+function [u1,u2] = ACM(N)
+% parameters:
+% N: grid size
+%
+% returns:
+% a steady state velocity field
 
 % create grid
-R = f;                          % Reynolds number
-delta = .006*f^2;                 % artificial compressibility
-N   = 50; 
-T   = .2;
+f = 1;
+R = 1;                          % Reynolds number
+delta = .006*f^2;               % artificial compressibility
+%N   = 50; 
 dx1 = 1/N;
 dx2 = 1/N;
-dt  = .6*dx1*R*sqrt(delta);   % what does stability analysis say we need here?
+dt  = .6*dx1*R*sqrt(delta);     % according to stability condition
 
 
 a = 0;
@@ -47,7 +53,11 @@ rho(:,:,2) = rho0;
 w = (1+2*dt*(1/(dx1)^2 + 1/(dx2)^2))^-1;
 t = 3; % this is stupid
 
-for s = 3:floor(T/dt)
+s = 1;
+
+err = 10^6;
+
+while err > 10^-5   
     if mod(s,10000) == 0
         s
     end
@@ -130,11 +140,17 @@ for s = 3:floor(T/dt)
     
     rho(:,:,1) = rho(:,:,2);
     rho(:,:,2) = rho(:,:,3);
+    
+    s = s+1;
+    err = max(max(abs(u1(:,:,3)-u1(:,:,1)))) + ...
+          max(max(abs(u2(:,:,3)-u2(:,:,1))));
+
+end
 
 end
            
 
 
-surf(X1,X2,u1(:,:,3))
+%surf(X1,X2,u1(:,:,3))
 
 
